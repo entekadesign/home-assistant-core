@@ -50,5 +50,8 @@
         }
       }
     }
-  }
+  },
+  "mounts": [
+    "source=/home/marco/Documents/DevDocs/alarm-clock,target=/workspaces/home-assistant-core/config/www/alarm-clock,type=bind,consistency=cached"
+  ]
 }
