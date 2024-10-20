@@ -6,7 +6,7 @@ from devolo_home_control_api.exceptions.gateway import GatewayOfflineError
 import pytest
 
 from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
-from homeassistant.components.devolo_home_control import DOMAIN
+from homeassistant.components.devolo_home_control.const import DOMAIN
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant
@@ -19,7 +19,8 @@ from .mocks import HomeControlMock, HomeControlMockBinarySensor
 from tests.typing import WebSocketGenerator
 
 
-async def test_setup_entry(hass: HomeAssistant, mock_zeroconf: None) -> None:
+@pytest.mark.usefixtures("mock_zeroconf")
+async def test_setup_entry(hass: HomeAssistant) -> None:
     """Test setup entry."""
     entry = configure_integration(hass)
     with patch("homeassistant.components.devolo_home_control.HomeControl"):
@@ -43,7 +44,8 @@ async def test_setup_entry_maintenance(hass: HomeAssistant) -> None:
     assert entry.state is ConfigEntryState.SETUP_RETRY
 
 
-async def test_setup_gateway_offline(hass: HomeAssistant, mock_zeroconf: None) -> None:
+@pytest.mark.usefixtures("mock_zeroconf")
+async def test_setup_gateway_offline(hass: HomeAssistant) -> None:
     """Test setup entry fails on gateway offline."""
     entry = configure_integration(hass)
     with patch(

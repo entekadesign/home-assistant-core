@@ -19,15 +19,9 @@ from homeassistant.components.synology_dsm.const import (
     CONF_SNAPSHOT_QUALITY,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SNAPSHOT_QUALITY,
-    DEFAULT_TIMEOUT,
     DOMAIN,
 )
-from homeassistant.config_entries import (
-    SOURCE_REAUTH,
-    SOURCE_SSDP,
-    SOURCE_USER,
-    SOURCE_ZEROCONF,
-)
+from homeassistant.config_entries import SOURCE_SSDP, SOURCE_USER, SOURCE_ZEROCONF
 from homeassistant.const import (
     CONF_HOST,
     CONF_MAC,
@@ -35,7 +29,6 @@ from homeassistant.const import (
     CONF_PORT,
     CONF_SCAN_INTERVAL,
     CONF_SSL,
-    CONF_TIMEOUT,
     CONF_USERNAME,
     CONF_VERIFY_SSL,
 )
@@ -299,24 +292,7 @@ async def test_reauth(hass: HomeAssistant, service: MagicMock) -> None:
     )
     entry.add_to_hass(hass)
 
-    with patch(
-        "homeassistant.config_entries.ConfigEntries.async_reload",
-        return_value=True,
-    ):
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={
-                "source": SOURCE_REAUTH,
-                "entry_id": entry.entry_id,
-                "unique_id": entry.unique_id,
-                "title_placeholders": {"name": entry.title},
-            },
-            data={
-                CONF_HOST: HOST,
-                CONF_USERNAME: USERNAME,
-                CONF_PASSWORD: PASSWORD,
-            },
-        )
+    result = await entry.start_reauth_flow(hass)
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "reauth_confirm"
 
@@ -608,18 +584,16 @@ async def test_options_flow(hass: HomeAssistant, service: MagicMock) -> None:
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert config_entry.options[CONF_SCAN_INTERVAL] == DEFAULT_SCAN_INTERVAL
-    assert config_entry.options[CONF_TIMEOUT] == DEFAULT_TIMEOUT
     assert config_entry.options[CONF_SNAPSHOT_QUALITY] == DEFAULT_SNAPSHOT_QUALITY
 
     # Manual
     result = await hass.config_entries.options.async_init(config_entry.entry_id)
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        user_input={CONF_SCAN_INTERVAL: 2, CONF_TIMEOUT: 30, CONF_SNAPSHOT_QUALITY: 0},
+        user_input={CONF_SCAN_INTERVAL: 2, CONF_SNAPSHOT_QUALITY: 0},
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert config_entry.options[CONF_SCAN_INTERVAL] == 2
-    assert config_entry.options[CONF_TIMEOUT] == 30
     assert config_entry.options[CONF_SNAPSHOT_QUALITY] == 0
 
 

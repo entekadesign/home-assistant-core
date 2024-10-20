@@ -3,15 +3,28 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from datetime import timedelta
 
 from aiohttp.client_exceptions import ClientConnectorError
-from nextdns import ApiError, NextDns
+from nextdns import (
+    AnalyticsDnssec,
+    AnalyticsEncryption,
+    AnalyticsIpVersions,
+    AnalyticsProtocols,
+    AnalyticsStatus,
+    ApiError,
+    ConnectionStatus,
+    InvalidApiKeyError,
+    NextDns,
+    Settings,
+)
+from tenacity import RetryError
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
@@ -23,7 +36,6 @@ from .const import (
     ATTR_SETTINGS,
     ATTR_STATUS,
     CONF_PROFILE_ID,
-    DOMAIN,
     UPDATE_INTERVAL_ANALYTICS,
     UPDATE_INTERVAL_CONNECTION,
     UPDATE_INTERVAL_SETTINGS,
@@ -39,6 +51,22 @@ from .coordinator import (
     NextDnsUpdateCoordinator,
 )
 
+type NextDnsConfigEntry = ConfigEntry[NextDnsData]
+
+
+@dataclass
+class NextDnsData:
+    """Data for the NextDNS integration."""
+
+    connection: NextDnsUpdateCoordinator[ConnectionStatus]
+    dnssec: NextDnsUpdateCoordinator[AnalyticsDnssec]
+    encryption: NextDnsUpdateCoordinator[AnalyticsEncryption]
+    ip_versions: NextDnsUpdateCoordinator[AnalyticsIpVersions]
+    protocols: NextDnsUpdateCoordinator[AnalyticsProtocols]
+    settings: NextDnsUpdateCoordinator[Settings]
+    status: NextDnsUpdateCoordinator[AnalyticsStatus]
+
+
 PLATFORMS = [Platform.BINARY_SENSOR, Platform.BUTTON, Platform.SENSOR, Platform.SWITCH]
 COORDINATORS: list[tuple[str, type[NextDnsUpdateCoordinator], timedelta]] = [
     (ATTR_CONNECTION, NextDnsConnectionUpdateCoordinator, UPDATE_INTERVAL_CONNECTION),
@@ -51,17 +79,18 @@ COORDINATORS: list[tuple[str, type[NextDnsUpdateCoordinator], timedelta]] = [
 ]
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: NextDnsConfigEntry) -> bool:
     """Set up NextDNS as config entry."""
     api_key = entry.data[CONF_API_KEY]
     profile_id = entry.data[CONF_PROFILE_ID]
 
     websession = async_get_clientsession(hass)
     try:
-        async with asyncio.timeout(10):
-            nextdns = await NextDns.create(websession, api_key)
-    except (ApiError, ClientConnectorError, TimeoutError) as err:
+        nextdns = await NextDns.create(websession, api_key)
+    except (ApiError, ClientConnectorError, RetryError, TimeoutError) as err:
         raise ConfigEntryNotReady from err
+    except InvalidApiKeyError as err:
+        raise ConfigEntryAuthFailed from err
 
     tasks = []
     coordinators = {}
@@ -75,18 +104,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await asyncio.gather(*tasks)
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinators
+    entry.runtime_data = NextDnsData(**coordinators)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: NextDnsConfigEntry) -> bool:
     """Unload a config entry."""
-    unload_ok: bool = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-
-    if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
-
-    return unload_ok
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

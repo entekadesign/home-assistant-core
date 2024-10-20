@@ -46,7 +46,7 @@ async def test_form(
         CONF_PASSWORD: "__password__",
     }
     assert len(mock_setup_entry.mock_calls) == 1
-    mock_pydrawise.get_user.assert_called_once_with()
+    mock_pydrawise.get_user.assert_called_once_with(fetch_zones=False)
 
 
 async def test_form_api_error(
@@ -93,6 +93,10 @@ async def test_form_connect_timeout(
     assert result2["type"] is FlowResultType.CREATE_ENTRY
 
 
+@pytest.mark.parametrize(  # Remove when translations fixed
+    "ignore_translations",
+    ["component.hydrawise.config.error.invalid_auth"],
+)
 async def test_form_not_authorized_error(
     hass: HomeAssistant, mock_pydrawise: AsyncMock, user: User
 ) -> None:
